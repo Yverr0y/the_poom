@@ -26,18 +26,23 @@ applications/poom_app_pack/
 │   ├── iconos.h
 │   ├── menu_air_ble.h
 │   ├── menu_ble_control.h
+│   ├── menu_ble_detector.h
 │   ├── menu_ble_scan.h
 │   ├── menu_ble_spam.h
 │   ├── menu_captive.h
 │   ├── menu_cli_nfc.h
+│   ├── menu_cli_ot.h
 │   ├── menu_cli_web.h
+│   ├── menu_cli_zigbee.h
 │   ├── menu_control_music.h
 │   ├── menu_deauth.h
 │   ├── menu_deauth_detector.h
+│   ├── menu_detector_view.h
 │   ├── menu_dfu.h
 │   ├── menu_edge_impulse.h
 │   ├── menu_fw_info.h
 │   ├── menu_http_load_test.h
+│   ├── menu_i2c_scan.h
 │   ├── menu_imu_monitor.h
 │   ├── menu_ir_universal.h
 │   ├── menu_karma.h
@@ -46,7 +51,9 @@ applications/poom_app_pack/
 │   ├── menu_midi_harmony.h
 │   ├── menu_nfc.h
 │   ├── menu_nfc_tuning.h
+│   ├── menu_picopass.h
 │   ├── menu_plot.h
+│   ├── menu_poom_boot_policy.h
 │   ├── menu_poom_pcap.h
 │   ├── menu_poom_drone_emul.h
 │   ├── menu_poom_drone_scan.h
@@ -56,25 +63,32 @@ applications/poom_app_pack/
 │   ├── menu_scanner_core.h
 │   ├── menu_sd_browser.h
 │   ├── menu_sniffer_device.h
+│   ├── menu_sniffer_rt.h
 │   ├── menu_ssid_spam.h
 │   ├── menu_tone.h
 │   ├── menu_tracker.h
+│   ├── menu_wifi_detector.h
 │   └── menu_ws2812_color.h
 └── src/
     ├── menu_air_ble.c
     ├── menu_ble_control.c
+    ├── menu_ble_detector.c
     ├── menu_ble_scan.c
     ├── menu_ble_spam.c
     ├── menu_captive.c
     ├── menu_cli_nfc.c
+    ├── menu_cli_ot.c
     ├── menu_cli_web.c
+    ├── menu_cli_zigbee.c
     ├── menu_control_music.c
     ├── menu_deauth.c
     ├── menu_deauth_detector.c
+    ├── menu_detector_view.c
     ├── menu_dfu.c
     ├── menu_edge_impulse.c
     ├── menu_fw_info.c
     ├── menu_http_load_test.c
+    ├── menu_i2c_scan.c
     ├── menu_imu_monitor.c
     ├── menu_ir_universal.c
     ├── menu_karma.c
@@ -83,7 +97,9 @@ applications/poom_app_pack/
     ├── menu_midi_harmony.c
     ├── menu_nfc.c
     ├── menu_nfc_tuning.c
+    ├── menu_picopass.c
     ├── menu_plot.c
+    ├── menu_poom_boot_policy.c
     ├── menu_poom_pcap.c
     ├── menu_poom_drone_emul.c
     ├── menu_poom_drone_scan.c
@@ -93,9 +109,11 @@ applications/poom_app_pack/
     ├── menu_scanner_core.c
     ├── menu_sd_browser.c
     ├── menu_sniffer_device.c
+    ├── menu_sniffer_rt.c
     ├── menu_ssid_spam.c
     ├── menu_tone.c
     ├── menu_tracker.c
+    ├── menu_wifi_detector.c
     └── menu_ws2812_color.c
 ```
 
@@ -117,41 +135,39 @@ graph TD
     B --> B4[SPAM WIFI]
     B --> B5[SPAM BLE]
     B --> B6[CAPTIVE PORTAL]
-    B --> B7[TRACKER]
-    B --> B8[SNIFFER]
-    B --> B9[SCAN CHANNELS]
-    B --> B10[SCAN NET]
-    B --> B11[CLI]
-    B --> B12[HTTP LOAD]
-    B --> B13[PROBE REQ]
+    B --> B7[BLE DETECT]
+    B --> B8[WIFI DETECT]
+    B --> B9[SNIFFER]
+    B --> B10[SNNIFER RT]
+    B --> B11[SCAN CHANNELS]
+    B --> B12[SCAN NET]
+    B --> B13[CLI]
+    B --> B14[HTTP LOAD]
+    B --> B15[PROBE REQ]
 
     C --> C1[MIDI]
-    C --> C2[HARMONY]
-    C --> C3[TONE]
-    C --> C4[CONTROL]
-    C --> C5[NFC]
-    C --> C6[IR UNIV]
-    C --> C7[POOM WEB]
+    C --> C2[CONTROL]
+    C --> C3[NFC]
+    C --> C4[PICOPASS]
+    C --> C5[IR UNIV]
+    C --> C6[POOM WEB]
 
-    D --> D1[TINY CONTROL]
-    D --> D2[WII]
+    D --> D1[GAME SLOT]
+    D --> D2[TINY CONTROL]
+    D --> D3[WII]
 
     E --> E1[PLOT]
-    E --> E2[BLE SCAN]
-    E --> E3[DRONE SCAN]
-    E --> E4[DRONE EMUL]
-    E --> E5[DRONE ID]
-    E --> E6[I2C]
-    E --> E7[LUA]
-    E --> E8[EDGE AI]
+    E --> E2[DRONE SCAN]
+    E --> E3[DRONE EMUL]
+    E --> E4[I2C]
+    E --> E5[LUA]
+    E --> E6[EDGE AI]
 
-    F --> F1[DFU]
-    F --> F2[FW INFO]
-    F --> F3[IMU]
-    F --> F4[LED RGB]
-    F --> F5[WI-FI]
-    F --> F6[NFC TUNE]
-    F --> F7[FILES]
+    F --> F1[BTN SOUND]
+    F --> F2[DFU]
+    F --> F3[FW INFO]
+    F --> F4[WI-FI]
+    F --> F5[SD]
 ```
 
 ## Applications Reference
@@ -206,12 +222,19 @@ This section expands each app with:
 - I/O: may read/write configuration/assets from SD depending on build; OLED status for run state.
 - Exit/return: exits to launcher and publishes `poom/menu/resume`.
 
-#### TRACKER (`menu_tracker.c`, `app_tracker_menu()`)
-- What it is: BLE tracker front-end (configure targets/labels and show proximity-like info).
-- Subsystems: `poom_ble_tracker`, `poom_ui_keyboard`, `poom_secrets_store` (persistence).
-- UI: list-style UI + simple text input for identifiers.
-- I/O: OLED status; stored settings in secrets store.
+#### BLE DETECT (`menu_ble_detector.c`, `menu_ble_detector_show()`)
+- What it is: passive BLE inventory and local detector with `BLE DEVICES`, `TRACKERS`, and `WEARABLES` filters.
+- Subsystems: `poom_ble_detector`, `poom_ble_scan`, `poom_ui_keyboard`, `poom_secrets_store`.
+- UI: up to 12 records with live RSSI, scrolling selected names, detail view, and persistent aliases.
+- Detection: recognizes supported AirTag, SmartTag, Tile, Find My-style, smart-glasses, and body-camera signatures. Matches are candidates rather than proof of identity.
 - Exit/return: exits to launcher and publishes `poom/menu/resume`.
+
+#### WIFI DETECT (`menu_wifi_detector.c`, `menu_wifi_detector_show()`)
+- What it is: local Wi-Fi inventory and detector with `WIFI DEVICES`, `AP CLIENTS`, `FLOCK/ALPR`, and `IP CAMERAS` filters.
+- Subsystems: `poom_wifi_detector`, `poom_wifi_scanner`, `poom_wifi_ctrl`, `poom_ui_keyboard`, `poom_secrets_store`.
+- UI: up to 12 deduplicated records with live RSSI, scrolling selected names, AP selection, a scrollable client list, detail view, and persistent aliases.
+- Detection: uses SSID keywords, OUI/MAC signatures, and passive promiscuous observations. `AP CLIENTS` fixes the selected AP channel and infers active client relationships from `ToDS`/`FromDS` data-frame addresses without associating to the AP.
+- Exit/return: stops scans and promiscuous monitoring, releases runtime storage, and publishes `poom/menu/resume`.
 
 #### SNIFFER (`menu_poom_pcap.c`, `menu_poom_pcap_show()`)
 - What it is: capture packets into PCAP for later analysis.
@@ -220,10 +243,17 @@ This section expands each app with:
 - I/O: output target shows as `SD` when a PCAP file path is available, otherwise `UART`.
 - Exit/return: stops capture, returns to launcher, publishes `poom/menu/resume`.
 
+#### SNNIFER RT (`menu_sniffer_rt.c`, `menu_sniffer_rt_show()`)
+- What it is: real-time capture selector for BLE and IEEE 802.15.4 host-assisted analysis.
+- Subsystems: `poom_ble_scan`, `poom_ieee802154_sniffer`, and the host transport path.
+- UI: selects BLE or IEEE 802.15.4; the latter also selects the capture channel.
+- Exit/return: stops the active capture path and returns control to the launcher.
+
 #### SCAN CHANNELS (`menu_scanner_core.c`, `menu_scanner_core_show()`)
 - What it is: real-time RF/channel activity view (Wi‑Fi vs IEEE 802.15.4).
 - Subsystems: `poom_scanner_core`.
-- UI: mode select + channel list view with activity bars.
+- UI: mode select + channel list view with activity bars. On Wi-Fi, `A:AIR` fixes the highlighted channel and opens `WIFI AIR`; `A:MIX` then shows Data/Management/Control percentages and RTS/CTS rates.
+- Wi-Fi metrics: one-second observation windows report frames/s, retry percentage and deauths/s. They do not claim exact RF airtime or channel-load percentage.
 - I/O: OLED-only.
 - Exit/return: exits to launcher and publishes `poom/menu/resume`.
 
@@ -264,20 +294,6 @@ This section expands each app with:
 - I/O: BLE MIDI output; OLED status.
 - Exit/return: exits to launcher and publishes `poom/menu/resume`.
 
-#### HARMONY (`menu_midi_harmony.c`, `menu_midi_harmony_init()`)
-- What it is: MIDI “player” UI for structured sequences/chords.
-- Subsystems: `ble_midi`, `poom_midi_player`, `sd_card`, `i2c`.
-- Storage: reads `.json` harmony definitions from `POOM_MIDI_HARMONY_DIR` (`/sdcard/harmonies`).
-- I/O: BLE MIDI output; OLED status.
-- Exit/return: exits to launcher and publishes `poom/menu/resume`.
-
-#### TONE (`menu_tone.c`, `app_buzzer_menu()`)
-- What it is: buzzer/tone browser + player.
-- Subsystems: `poom_buz_theme`, `sd_card`, `cJSON`.
-- Storage: scans/creates `/sdcard/tones` and loads `.tone` files (JSON event lists).
-- I/O: buzzer audio output; OLED file list/status.
-- Exit/return: exits to launcher and publishes `poom/menu/resume`.
-
 #### CONTROL (`menu_control_music.c`, `menu_control_init()`)
 - What it is: “media keys” style BLE HID control (play/pause, next/prev, etc.).
 - Subsystems: `poom_ble_keyboard` (HID), SBUS buttons.
@@ -290,6 +306,13 @@ This section expands each app with:
 - Storage: supports SD card `.nfc` files and on-device store, depending on selected mode.
 - I/O: OLED status; NFC I/O; optional UART logs.
 - Exit/return: exits to launcher and publishes `poom/menu/resume`.
+
+#### PICOPASS (`menu_picopass.c`, `menu_picopass_show()`)
+- What it is: PicoPass/iCLASS credential reader and inspection UI for authorized cards.
+- Subsystems: `poom_picopass`, `poom_nfc`, and `sd_card`.
+- Storage: can save supported card data and decoded credential information to SD.
+- I/O: OLED results, NFC communication, and optional diagnostic logs.
+- Exit/return: stops polling and publishes `poom/menu/resume`.
 
 #### IR UNIV (`menu_ir_universal.c`, `menu_ir_universal_show()`)
 - What it is: universal IR remote (learn/store/transmit) UI.
@@ -305,6 +328,12 @@ This section expands each app with:
 - Exit/return: exits to launcher and publishes `poom/menu/resume`.
 
 ### THE GAMER - Gaming Applications
+
+#### GAME SLOT (`menu_poom_boot_policy.c`, `menu_poom_boot_policy_show()`)
+- What it is: launcher for a game image installed in the secondary application slot.
+- Subsystems: `poom_boot_policy`, OTA partitions, `poom_sd_browser`, and `sd_card`.
+- Storage: can select and install a compatible `.bin` game image from SD.
+- Exit/return: either returns to the launcher or reboots into the selected game image.
 
 #### TINY CONTROL (`menu_ble_control.c`, `menu_control_display()`)
 - What it is: minimal BLE HID “keyboard-like” controller UI intended for games.
@@ -328,12 +357,6 @@ This section expands each app with:
 - I/O: OLED plot UI; optional BLE streaming depending on mode.
 - Exit/return: exits to launcher and publishes `poom/menu/resume`.
 
-#### BLE SCAN (`menu_ble_scan.c`, `app_ble_scan()`)
-- What it is: BLE scanner UI for discovering nearby devices/advertisements.
-- Subsystems: `poom_ble_scan` + ESP-IDF GAP BLE.
-- I/O: OLED list; BLE scan traffic; optional UART logs.
-- Exit/return: exits to launcher and publishes `poom/menu/resume`.
-
 #### DRONE SCAN (`menu_poom_drone_scan.c`, `menu_poom_drone_scan_show()`)
 - What it is: RemoteID scanner UI (lab tool; integrates with drone modules).
 - Subsystems: `poom_drone` (scanner), timer/queue based UI refresh.
@@ -346,13 +369,6 @@ This section expands each app with:
 - Subsystems: `poom_drone_emul` (emulation), `poom_drone` (shared types).
 - I/O: OLED status; emits test beacons/frames per configured emulation mode.
 - Exit/return: stops emulation and publishes `poom/menu/resume`.
-
-#### DRONE ID (`menu_poom_droneid.c`, `menu_poom_droneid_show()`)
-- What it is: RemoteID detail/debug UI + optional capture toggles.
-- Subsystems: `poom_drone`, `sd_card`.
-- Storage: can enable/disable “PCAP to SD” capture in UI (default OFF).
-- I/O: OLED status/detail screens; optional SD logging when enabled.
-- Exit/return: exits to launcher and publishes `poom/menu/resume`.
 
 #### I2C
 - What it is: on-device I2C scan is exposed as the external app `menu_i2c_scan_show()`.
@@ -373,6 +389,11 @@ This section expands each app with:
 
 ### SETTINGS - System Configuration
 
+#### BTN SOUND
+- What it is: persistent toggle for button feedback sounds.
+- UI: the launcher label reflects the current enabled/disabled setting.
+- Exit/return: toggles immediately without leaving the Settings list.
+
 #### DFU (`menu_dfu.c`, `dfu_start_task()`)
 - What it is: device firmware update (DFU) modal UI.
 - Subsystems: `poom_fw_update` + `dfu` + `poom_dfu_log` (uses a local update flow, typically via `poom.local`).
@@ -386,18 +407,6 @@ This section expands each app with:
 - I/O: OLED-only.
 - Exit/return: publishes `poom/menu/resume` when exiting.
 
-#### IMU (`menu_imu_monitor.c`, `menu_imu_monitor_show()`)
-- What it is: IMU stream/monitor UI.
-- Subsystems: `poom_imu_stream`.
-- I/O: OLED readings/status; optional UART logs.
-- Exit/return: publishes `poom/menu/resume` on exit.
-
-#### LED RGB (`menu_ws2812_color.c`, `menu_ws2812_color_show()`)
-- What it is: WS2812/RGB control UI.
-- Subsystems: `ws2812`, `poom_led_rainbow`, board pin map (`bsp_pong.h`).
-- I/O: LED output + OLED status.
-- Exit/return: publishes `poom/menu/resume` on exit.
-
 #### WI‑FI (`menu_poom_wifi_scan.c`, `menu_poom_wifi_scan_show()`)
 - What it is: Wi‑Fi scan + connect/config UI for legitimate network management.
 - Subsystems: `poom_wifi_ctrl`, `poom_wifi_scanner`, `poom_ui_keyboard`, `poom_secrets_store`.
@@ -405,13 +414,7 @@ This section expands each app with:
 - I/O: OLED status; Wi‑Fi connectivity.
 - Exit/return: publishes `poom/menu/resume` on exit.
 
-#### NFC TUNE (`menu_nfc_tuning.c`, `menu_nfc_tuning_show()`)
-- What it is: NFC controller diagnostics/tuning UI.
-- Subsystems: `poom_nfc_controller`.
-- I/O: OLED status; interacts with NFC front-end hardware.
-- Exit/return: publishes `poom/menu/resume` on exit.
-
-#### FILES (`menu_sd_browser.c`, `app_sd_browser_menu()`)
+#### SD (`menu_sd_browser.c`, `app_sd_browser_menu()`)
 - What it is: SD file browser UI.
 - Subsystems: `poom_sd_browser`, `sd_card`.
 - I/O: OLED list UI; file reads/writes depend on invoked actions.
@@ -424,9 +427,9 @@ Defined in `applications/poom_app_pack/CMakeLists.txt`:
 - UI + control plane: `poom_sbus`, `poom_arduboy_display`, `button_driver`
 - Persistence: `poom_secrets_store`
 - Storage: `sd_card`, `poom_sd_browser`
-- Wireless: `poom_wifi_ctrl`, `poom_wifi_scanner`, `poom_ble_scan`, `poom_ble_keyboard`, `poom_ble_spam`, `poom_ble_tracker`
-- NFC/IR: `poom_nfc`, `ir` (IR TX/RX are both used by the IR app through this component)
-- Tooling apps: `poom_pcap`, `poom_scanner_core`, `poom_sniffer_device`, `poom_edge_impulse`, `poom_http_load_test`, `poom_web`, `poom_lua`, `poom_midi`
+- Wireless: `poom_wifi_ctrl`, `poom_wifi_scanner`, `poom_wifi_detector`, `poom_ble_scan`, `poom_ble_detector`, `poom_ble_keyboard`, `poom_ble_spam`, `poom_ble_tracker`
+- NFC/IR: `poom_nfc`, `poom_picopass`, `ir` (IR TX/RX are both used by the IR app through this component)
+- Tooling apps: `poom_pcap`, `poom_scanner_core`, `poom_sniffer_device`, `poom_boot_policy`, `poom_edge_impulse`, `poom_http_load_test`, `poom_web`, `poom_lua`, `poom_midi`
 
 ## Entry points (public headers)
 

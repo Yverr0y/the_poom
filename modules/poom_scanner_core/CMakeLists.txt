@@ -5,5 +5,5 @@ set(srcs
 idf_component_register(
     SRCS "${srcs}"
     INCLUDE_DIRS "include"
-    REQUIRES freertos poom_wifi_ctrl esp_wifi ieee802154
+    REQUIRES freertos poom_wifi_ctrl esp_wifi esp_timer ieee802154
 )

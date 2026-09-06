@@ -6,10 +6,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "Arduboy2.h"
 #include "button_driver.h"
+#include "esp_memory_utils.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -63,6 +65,8 @@ typedef enum
 {
     MENU_SCANNER_STATE_SELECT = 0,
     MENU_SCANNER_STATE_CHANNELS,
+    MENU_SCANNER_STATE_WIFI_AIR,
+    MENU_SCANNER_STATE_FRAME_MIX,
 } menu_scanner_state_t;
 
 typedef struct
@@ -82,9 +86,36 @@ static uint8_t s_selected = 0U;
 static char s_status[18] = "READY";
 static int s_chan_selected = 0;
 static int s_chan_scroll = 0;
+static uint8_t s_wifi_selected_channel = 1U;
+static TickType_t s_wifi_air_window_tick = 0U;
+static bool s_wifi_air_has_sample = false;
+static poom_scanner_core_wifi_air_stats_t* s_wifi_air_stats = NULL;
 
 static void menu_scanner_button_cb_(const poom_sbus_msg_t* msg, void* user_ctx);
 static void menu_scanner_ui_task_(void* arg);
+
+static bool menu_scanner_wifi_air_alloc_(void)
+{
+    if(s_wifi_air_stats != NULL)
+    {
+        return true;
+    }
+    s_wifi_air_stats = malloc(sizeof(*s_wifi_air_stats));
+    if((s_wifi_air_stats == NULL) || !esp_ptr_internal(s_wifi_air_stats))
+    {
+        free(s_wifi_air_stats);
+        s_wifi_air_stats = NULL;
+        return false;
+    }
+    (void)memset(s_wifi_air_stats, 0, sizeof(*s_wifi_air_stats));
+    return true;
+}
+
+static void menu_scanner_wifi_air_free_(void)
+{
+    free(s_wifi_air_stats);
+    s_wifi_air_stats = NULL;
+}
 
 /**
  * @brief Returns the display label for the current state.
@@ -105,8 +136,6 @@ static const char* menu_scanner_mode_label_(uint8_t selected)
  */
 static void menu_scanner_draw_frame_(const char* title)
 {
-    char st_short[10];
-
     poom_arduboy_clear();
     poom_arduboy_set_text_size(1);
 
@@ -150,6 +179,12 @@ static void menu_scanner_render_select_(void)
         {
             poom_arduboy_fill_rect(0, (int16_t)(y - 1), ARDUBOY_WIDTH, row_h, INVERT);
         }
+    }
+
+    if(strcmp(s_status, "READY") != 0)
+    {
+        poom_arduboy_set_cursor(2, 42);
+        (void)poom_arduboy_print(s_status);
     }
 
     poom_arduboy_set_cursor(0, 56);
@@ -238,6 +273,49 @@ static void menu_scanner_channels_adjust_scroll_(int count)
     if(s_chan_scroll > max_scroll)
     {
         s_chan_scroll = max_scroll;
+    }
+}
+
+static uint32_t menu_scanner_rate_(uint32_t count, uint32_t window_ms)
+{
+    if(window_ms == 0U)
+    {
+        return 0U;
+    }
+    return (uint32_t)(((uint64_t)count * 1000ULL) / (uint64_t)window_ms);
+}
+
+static uint8_t menu_scanner_percent_(uint32_t part, uint32_t total)
+{
+    uint32_t percent;
+
+    if(total == 0U)
+    {
+        return 0U;
+    }
+    percent = (uint32_t)(((uint64_t)part * 100ULL) / (uint64_t)total);
+    return (uint8_t)((percent > 100U) ? 100U : percent);
+}
+
+static void menu_scanner_update_wifi_air_(void)
+{
+    TickType_t now = xTaskGetTickCount();
+
+    if(s_wifi_air_stats == NULL)
+    {
+        return;
+    }
+
+    if((s_wifi_air_window_tick == 0U) ||
+       ((now - s_wifi_air_window_tick) >= pdMS_TO_TICKS(1000U)))
+    {
+        poom_scanner_core_wifi_air_stats_t snapshot;
+        if(poom_scanner_core_get_wifi_air_stats(&snapshot, true))
+        {
+            *s_wifi_air_stats = snapshot;
+            s_wifi_air_has_sample = snapshot.window_ms > 0U;
+        }
+        s_wifi_air_window_tick = now;
     }
 }
 
@@ -351,6 +429,10 @@ static void menu_scanner_render_channels_wifi_(void)
     menu_scanner_draw_frame_("SCAN WIFI");
 
     menu_scanner_channels_adjust_scroll_(count);
+    if((count > 0) && (s_chan_selected >= 0) && (s_chan_selected < count))
+    {
+        s_wifi_selected_channel = entries[s_chan_selected].channel;
+    }
 
     for(int row = 0; row < VISIBLE_ROWS; row++)
     {
@@ -382,7 +464,7 @@ static void menu_scanner_render_channels_wifi_(void)
     }
 
     poom_arduboy_set_cursor(0, 56);
-    (void)poom_arduboy_print(F("A:RST"));
+    (void)poom_arduboy_print(F("A:AIR"));
     poom_arduboy_set_cursor(42, 56);
     (void)poom_arduboy_print(F("L/R:PG"));
     poom_arduboy_set_cursor(84, 56);
@@ -462,6 +544,106 @@ static void menu_scanner_render_channels_ieee_(void)
     poom_arduboy_display();
 }
 
+static void menu_scanner_render_wifi_air_(void)
+{
+    char line[22];
+    uint32_t frames_per_second = 0U;
+    uint32_t deauth_per_second = 0U;
+    uint8_t retry_percent = 0U;
+
+    menu_scanner_update_wifi_air_();
+    if(s_wifi_air_has_sample)
+    {
+        frames_per_second = menu_scanner_rate_(s_wifi_air_stats->total_frames,
+                                               s_wifi_air_stats->window_ms);
+        deauth_per_second = menu_scanner_rate_(s_wifi_air_stats->deauth_frames,
+                                               s_wifi_air_stats->window_ms);
+        retry_percent = menu_scanner_percent_(s_wifi_air_stats->retry_frames,
+                                              s_wifi_air_stats->retry_eligible_frames);
+    }
+
+    menu_scanner_draw_frame_("WIFI AIR");
+    poom_arduboy_set_cursor(4, 14);
+    (void)snprintf(line,
+                   sizeof(line),
+                   "CH %u   %s",
+                   (unsigned)s_wifi_selected_channel,
+                   (s_wifi_selected_channel <= 14U) ? "2.4 GHz" : "5 GHz");
+    (void)poom_arduboy_print(line);
+
+    poom_arduboy_set_cursor(4, 22);
+    if(s_wifi_air_has_sample)
+    {
+        (void)snprintf(line, sizeof(line), "FRAMES %lu/s",
+                       (unsigned long)frames_per_second);
+    }
+    else
+    {
+        (void)snprintf(line, sizeof(line), "FRAMES ---/s");
+    }
+    (void)poom_arduboy_print(line);
+
+    poom_arduboy_set_cursor(4, 30);
+    (void)snprintf(line, sizeof(line), "RETRY %u%%", (unsigned)retry_percent);
+    (void)poom_arduboy_print(line);
+
+    poom_arduboy_set_cursor(4, 38);
+    (void)snprintf(line, sizeof(line), "DEAUTH %lu/s",
+                   (unsigned long)deauth_per_second);
+    (void)poom_arduboy_print(line);
+
+    poom_arduboy_set_cursor(0, 56);
+    (void)poom_arduboy_print(F("A:MIX"));
+    poom_arduboy_set_cursor(84, 56);
+    (void)poom_arduboy_print(F("B:BACK"));
+    poom_arduboy_display();
+}
+
+static void menu_scanner_render_frame_mix_(void)
+{
+    char line[22];
+    uint8_t data_percent;
+    uint8_t management_percent;
+    uint8_t control_percent;
+    uint32_t rts_per_second;
+    uint32_t cts_per_second;
+
+    menu_scanner_update_wifi_air_();
+    data_percent = menu_scanner_percent_(s_wifi_air_stats->data_frames,
+                                        s_wifi_air_stats->total_frames);
+    management_percent = menu_scanner_percent_(s_wifi_air_stats->management_frames,
+                                              s_wifi_air_stats->total_frames);
+    control_percent = menu_scanner_percent_(s_wifi_air_stats->control_frames,
+                                           s_wifi_air_stats->total_frames);
+    rts_per_second = menu_scanner_rate_(s_wifi_air_stats->rts_frames,
+                                        s_wifi_air_stats->window_ms);
+    cts_per_second = menu_scanner_rate_(s_wifi_air_stats->cts_frames,
+                                        s_wifi_air_stats->window_ms);
+
+    menu_scanner_draw_frame_("FRAME MIX");
+    poom_arduboy_set_cursor(4, 14);
+    (void)snprintf(line, sizeof(line), "DATA       %u%%", (unsigned)data_percent);
+    (void)poom_arduboy_print(line);
+    poom_arduboy_set_cursor(4, 22);
+    (void)snprintf(line, sizeof(line), "MGMT       %u%%", (unsigned)management_percent);
+    (void)poom_arduboy_print(line);
+    poom_arduboy_set_cursor(4, 30);
+    (void)snprintf(line, sizeof(line), "CTRL       %u%%", (unsigned)control_percent);
+    (void)poom_arduboy_print(line);
+    poom_arduboy_set_cursor(4, 38);
+    (void)snprintf(line, sizeof(line), "RTS        %lu/s",
+                   (unsigned long)rts_per_second);
+    (void)poom_arduboy_print(line);
+    poom_arduboy_set_cursor(4, 46);
+    (void)snprintf(line, sizeof(line), "CTS        %lu/s",
+                   (unsigned long)cts_per_second);
+    (void)poom_arduboy_print(line);
+
+    poom_arduboy_set_cursor(84, 56);
+    (void)poom_arduboy_print(F("B:BACK"));
+    poom_arduboy_display();
+}
+
 /**
  * @brief Renders the current menu state.
  *
@@ -473,7 +655,7 @@ static void menu_scanner_render_(void)
     {
         menu_scanner_render_select_();
     }
-    else
+    else if(s_state == MENU_SCANNER_STATE_CHANNELS)
     {
         if(s_selected == 0U)
         {
@@ -483,6 +665,14 @@ static void menu_scanner_render_(void)
         {
             menu_scanner_render_channels_ieee_();
         }
+    }
+    else if(s_state == MENU_SCANNER_STATE_WIFI_AIR)
+    {
+        menu_scanner_render_wifi_air_();
+    }
+    else
+    {
+        menu_scanner_render_frame_mix_();
     }
 }
 
@@ -498,6 +688,7 @@ static void menu_scanner_exit_(void)
     s_scanner_active = false;
 
     (void)poom_scanner_core_stop();
+    menu_scanner_wifi_air_free_();
 
     if(s_scanner_ui_task != NULL)
     {
@@ -553,7 +744,14 @@ static void menu_scanner_handle_select_button_(uint8_t button)
 
         if(s_selected == 0U)
         {
-            st = poom_scanner_core_start_wifi(200U);
+            if(menu_scanner_wifi_air_alloc_())
+            {
+                st = poom_scanner_core_start_wifi(200U);
+            }
+            else
+            {
+                st = ESP_ERR_NO_MEM;
+            }
         }
         else
         {
@@ -567,7 +765,15 @@ static void menu_scanner_handle_select_button_(uint8_t button)
         }
         else
         {
-            if(st == ESP_ERR_NOT_SUPPORTED)
+            if(s_selected == 0U)
+            {
+                menu_scanner_wifi_air_free_();
+            }
+            if(st == ESP_ERR_NO_MEM)
+            {
+                (void)snprintf(s_status, sizeof(s_status), "NO MEMORY");
+            }
+            else if(st == ESP_ERR_NOT_SUPPORTED)
             {
                 (void)snprintf(s_status, sizeof(s_status), "NO %s", menu_scanner_mode_label_(s_selected));
             }
@@ -593,7 +799,26 @@ static void menu_scanner_handle_channels_button_(uint8_t button)
 {
     if(button == BTN_A)
     {
-        poom_scanner_core_reset_stats();
+        if(s_selected == 0U)
+        {
+            esp_err_t status = poom_scanner_core_wifi_focus_channel(
+                s_wifi_selected_channel);
+            if(status == ESP_OK)
+            {
+                (void)memset(s_wifi_air_stats, 0, sizeof(*s_wifi_air_stats));
+                s_wifi_air_has_sample = false;
+                s_wifi_air_window_tick = xTaskGetTickCount();
+                s_state = MENU_SCANNER_STATE_WIFI_AIR;
+            }
+            else
+            {
+                (void)snprintf(s_status, sizeof(s_status), "AIR ERR %d", (int)status);
+            }
+        }
+        else
+        {
+            poom_scanner_core_reset_stats();
+        }
     }
     else if(button == BTN_UP)
     {
@@ -614,8 +839,34 @@ static void menu_scanner_handle_channels_button_(uint8_t button)
     else if(button == BTN_B)
     {
         (void)poom_scanner_core_stop();
+        menu_scanner_wifi_air_free_();
         (void)snprintf(s_status, sizeof(s_status), "READY");
         s_state = MENU_SCANNER_STATE_SELECT;
+    }
+}
+
+static void menu_scanner_handle_wifi_air_button_(uint8_t button)
+{
+    if(button == BTN_A)
+    {
+        s_state = MENU_SCANNER_STATE_FRAME_MIX;
+    }
+    else if(button == BTN_B)
+    {
+        if(poom_scanner_core_wifi_resume_hopping() == ESP_OK)
+        {
+            s_wifi_air_has_sample = false;
+            s_wifi_air_window_tick = 0U;
+            s_state = MENU_SCANNER_STATE_CHANNELS;
+        }
+    }
+}
+
+static void menu_scanner_handle_frame_mix_button_(uint8_t button)
+{
+    if(button == BTN_B)
+    {
+        s_state = MENU_SCANNER_STATE_WIFI_AIR;
     }
 }
 
@@ -676,9 +927,17 @@ static void menu_scanner_ui_task_(void* arg)
             {
                 menu_scanner_handle_select_button_(msg.button);
             }
-            else
+            else if(s_state == MENU_SCANNER_STATE_CHANNELS)
             {
                 menu_scanner_handle_channels_button_(msg.button);
+            }
+            else if(s_state == MENU_SCANNER_STATE_WIFI_AIR)
+            {
+                menu_scanner_handle_wifi_air_button_(msg.button);
+            }
+            else
+            {
+                menu_scanner_handle_frame_mix_button_(msg.button);
             }
         }
 
@@ -697,9 +956,13 @@ void menu_scanner_core_show(void)
     s_scanner_active = true;
     s_state = MENU_SCANNER_STATE_SELECT;
     s_selected = 0U;
+    s_wifi_selected_channel = 1U;
+    s_wifi_air_window_tick = 0U;
+    s_wifi_air_has_sample = false;
     (void)snprintf(s_status, sizeof(s_status), "READY");
 
     (void)poom_scanner_core_stop();
+    menu_scanner_wifi_air_free_();
 
     if(s_scanner_btn_q == NULL)
     {

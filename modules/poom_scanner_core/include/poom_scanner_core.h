@@ -68,6 +68,21 @@ typedef struct
     int8_t rssi_max_dbm;
 } poom_scanner_core_top_channel_t;
 
+typedef struct
+{
+    uint8_t channel;
+    uint32_t window_ms;
+    uint32_t total_frames;
+    uint32_t management_frames;
+    uint32_t control_frames;
+    uint32_t data_frames;
+    uint32_t retry_frames;
+    uint32_t retry_eligible_frames;
+    uint32_t deauth_frames;
+    uint32_t rts_frames;
+    uint32_t cts_frames;
+} poom_scanner_core_wifi_air_stats_t;
+
 /**
  * @brief Reset internal counters (does not stop scanning).
  */
@@ -133,6 +148,17 @@ size_t poom_scanner_core_get_wifi_top_channels(poom_scanner_core_top_channel_t* 
  * @return Number of entries written (0..out_len).
  */
 size_t poom_scanner_core_get_ieee802154_top_channels(poom_scanner_core_top_channel_t* out_entries, size_t out_len);
+
+/** Stops channel hopping and begins a fresh statistics window on one channel. */
+esp_err_t poom_scanner_core_wifi_focus_channel(uint8_t channel);
+
+/** Leaves fixed-channel analysis and resumes the existing channel survey. */
+esp_err_t poom_scanner_core_wifi_resume_hopping(void);
+
+/** Copies the current fixed-channel window and optionally starts a new one. */
+bool poom_scanner_core_get_wifi_air_stats(
+    poom_scanner_core_wifi_air_stats_t* out,
+    bool reset_window);
 
 #ifdef __cplusplus
 }

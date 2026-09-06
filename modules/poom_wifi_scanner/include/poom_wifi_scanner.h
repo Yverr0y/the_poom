@@ -45,6 +45,14 @@ typedef struct
 esp_err_t poom_wifi_scanner_scan(void);
 
 /**
+ * @brief Runs a blocking Wi-Fi scan with caller-provided timing/filter options.
+ *
+ * @param[in] config Scan configuration, or NULL for the driver defaults.
+ * @return ESP_OK on success; otherwise an ESP-IDF Wi-Fi error.
+ */
+esp_err_t poom_wifi_scanner_scan_configured(const wifi_scan_config_t *config);
+
+/**
  * @brief Gets the cached AP records container.
  * @param[in/out] none Not used.
  * @return poom_wifi_scanner_ap_records_t*

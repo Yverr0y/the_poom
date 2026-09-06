@@ -14,6 +14,7 @@ It supports:
 - Hop channels periodically using a FreeRTOS software timer.
 - Count packets per channel and track RSSI (avg/max) per channel.
 - Provide thread-safe snapshots of stats and “top channels” helpers.
+- Fix Wi-Fi reception on a selected channel and expose one-second frame counters for the `WIFI AIR` view.
 - Provide a single optional ISR consumer for IEEE 802.15.4 frames (e.g. PCAP capture) while the core owns the required global callback symbol.
 
 ## Directory Layout
@@ -48,6 +49,10 @@ From `include/poom_scanner_core.h`:
 - `poom_scanner_core_get_wifi_top_channels(out_entries, out_len)`
 - `poom_scanner_core_get_ieee802154_top_channels(out_entries, out_len)`
   - Returns the top N channels ordered by `packet_count` (descending), with `packet_pct` and RSSI stats.
+- `poom_scanner_core_wifi_focus_channel(channel)` / `poom_scanner_core_wifi_resume_hopping()`
+  - Pause the survey on one channel for analysis, then resume the same hopping timer.
+- `poom_scanner_core_get_wifi_air_stats(out, reset_window)`
+  - Snapshots Data, Management, Control, Retry, Deauth, RTS and CTS counters without storing captured frames.
 
 From `include/poom_scanner_core_ieee802154_isr.h`:
 - `poom_scanner_core_ieee802154_register_isr_consumer(cb, user)`
@@ -121,5 +126,7 @@ void stop_scan(void)
 
 ## Notes / Limitations
 - Wi-Fi scanning is 2.4 GHz only on targets without 5 GHz support.
+- `WIFI AIR` reports observed frame activity rather than exact RF airtime; undecodable Wi-Fi and non-Wi-Fi interference are outside these counters.
+- Its small runtime counter block is allocated with `malloc`, verified as internal memory, and released by `poom_scanner_core_stop()`.
 - IEEE 802.15.4 scanning is only enabled on targets that support `esp_ieee802154` in this firmware (guarded by target macros in the implementation).
 - The module intentionally does **no rendering/UI**; menus should consume stats via the snapshot APIs.

@@ -142,6 +142,9 @@ esp_err_t poom_ble_scan_start(void)
     ret = poom_ble_gatt_client_start();
     if(ret != ESP_OK)
     {
+        poom_ble_gatt_client_event_cb_t empty_cb = {0};
+        poom_ble_gatt_client_set_callbacks(empty_cb);
+        (void)poom_ble_gatt_client_stop();
         POOM_BLE_SCAN_PRINTF_E("BLE scanner start failed: %s", esp_err_to_name(ret));
         return ret;
     }

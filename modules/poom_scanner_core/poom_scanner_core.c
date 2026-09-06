@@ -10,6 +10,7 @@
 
 #include "poom_scanner_core.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "sdkconfig.h"
@@ -19,6 +20,8 @@
 #include "esp_err.h"
 #include "esp_ieee802154.h"
 #include "esp_mac.h"
+#include "esp_memory_utils.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 
 #include "freertos/FreeRTOS.h"
@@ -75,6 +78,15 @@ static int8_t s_wifi_ch_to_idx[POOM_SCANNER_CORE_WIFI_CH_LUT_LEN];
 static uint32_t s_wifi_count[POOM_SCANNER_CORE_WIFI_CH_COUNT];
 static int32_t s_wifi_rssi_sum[POOM_SCANNER_CORE_WIFI_CH_COUNT];
 static int8_t s_wifi_rssi_max[POOM_SCANNER_CORE_WIFI_CH_COUNT];
+
+typedef struct
+{
+    poom_scanner_core_wifi_air_stats_t counters;
+    uint32_t window_start_ms;
+    bool focused;
+} poom_scanner_core_wifi_air_runtime_t;
+
+static poom_scanner_core_wifi_air_runtime_t* s_wifi_air = NULL;
 
 static uint32_t s_ieee_count[POOM_SCANNER_CORE_IEEE802154_CH_COUNT];
 static int32_t s_ieee_rssi_sum[POOM_SCANNER_CORE_IEEE802154_CH_COUNT];
@@ -208,6 +220,11 @@ static int8_t poom_scanner_core_wifi_rssi_dbm_(const wifi_promiscuous_pkt_t* pkt
 static void poom_scanner_core_wifi_promisc_cb_(void* buf, wifi_promiscuous_pkt_type_t type)
 {
     const wifi_promiscuous_pkt_t* pkt = (const wifi_promiscuous_pkt_t*)buf;
+    const uint8_t* frame;
+    size_t frame_len;
+    uint8_t frame_type = 3U;
+    uint8_t subtype = 0U;
+    bool retry = false;
 
     if(s_sc.mode != POOM_SCANNER_CORE_MODE_WIFI)
     {
@@ -226,6 +243,14 @@ static void poom_scanner_core_wifi_promisc_cb_(void* buf, wifi_promiscuous_pkt_t
     }
 
     const int8_t rssi = poom_scanner_core_wifi_rssi_dbm_(pkt);
+    frame = pkt->payload;
+    frame_len = (size_t)pkt->rx_ctrl.sig_len;
+    if((frame != NULL) && (frame_len >= 2U))
+    {
+        frame_type = (uint8_t)((frame[0] >> 2U) & 0x03U);
+        subtype = (uint8_t)((frame[0] >> 4U) & 0x0FU);
+        retry = (frame[1] & 0x08U) != 0U;
+    }
 
     portENTER_CRITICAL(&s_lock);
     s_wifi_count[idx]++;
@@ -233,6 +258,69 @@ static void poom_scanner_core_wifi_promisc_cb_(void* buf, wifi_promiscuous_pkt_t
     if(rssi > s_wifi_rssi_max[idx])
     {
         s_wifi_rssi_max[idx] = rssi;
+    }
+
+    if((s_wifi_air != NULL) && s_wifi_air->focused &&
+       (s_wifi_air->counters.channel == ch))
+    {
+        poom_scanner_core_wifi_air_stats_t* air = &s_wifi_air->counters;
+
+        if(pkt->rx_ctrl.rx_state == 0U)
+        {
+            if(air->total_frames != UINT32_MAX)
+            {
+                ++air->total_frames;
+            }
+            if(type == WIFI_PKT_MGMT)
+            {
+                if(air->management_frames != UINT32_MAX)
+                {
+                    ++air->management_frames;
+                }
+                if((frame_type == 0U) && (subtype == 12U) &&
+                   (air->deauth_frames != UINT32_MAX))
+                {
+                    ++air->deauth_frames;
+                }
+            }
+            else if(type == WIFI_PKT_CTRL)
+            {
+                if(air->control_frames != UINT32_MAX)
+                {
+                    ++air->control_frames;
+                }
+                if((frame_type == 1U) && (subtype == 11U) &&
+                   (air->rts_frames != UINT32_MAX))
+                {
+                    ++air->rts_frames;
+                }
+                else if((frame_type == 1U) && (subtype == 12U) &&
+                        (air->cts_frames != UINT32_MAX))
+                {
+                    ++air->cts_frames;
+                }
+            }
+            else if(type == WIFI_PKT_DATA)
+            {
+                if(air->data_frames != UINT32_MAX)
+                {
+                    ++air->data_frames;
+                }
+            }
+
+            if(((type == WIFI_PKT_MGMT) || (type == WIFI_PKT_DATA)) &&
+               (frame_len >= 2U))
+            {
+                if(air->retry_eligible_frames != UINT32_MAX)
+                {
+                    ++air->retry_eligible_frames;
+                }
+                if(retry && (air->retry_frames != UINT32_MAX))
+                {
+                    ++air->retry_frames;
+                }
+            }
+        }
     }
     portEXIT_CRITICAL(&s_lock);
 }
@@ -314,6 +402,50 @@ static void poom_scanner_core_stop_hop_timer_(void)
     s_sc.hop_ms = 0U;
 }
 
+static esp_err_t poom_scanner_core_wifi_air_alloc_(void)
+{
+    poom_scanner_core_wifi_air_runtime_t* runtime;
+
+    if(s_wifi_air != NULL)
+    {
+        return ESP_OK;
+    }
+    runtime = malloc(sizeof(*runtime));
+    if((runtime == NULL) || !esp_ptr_internal(runtime))
+    {
+        free(runtime);
+        return ESP_ERR_NO_MEM;
+    }
+    (void)memset(runtime, 0, sizeof(*runtime));
+    s_wifi_air = runtime;
+    return ESP_OK;
+}
+
+static void poom_scanner_core_wifi_air_free_(void)
+{
+    poom_scanner_core_wifi_air_runtime_t* runtime;
+
+    portENTER_CRITICAL(&s_lock);
+    runtime = s_wifi_air;
+    s_wifi_air = NULL;
+    portEXIT_CRITICAL(&s_lock);
+    free(runtime);
+}
+
+static void poom_scanner_core_wifi_air_reset_locked_(uint8_t channel,
+                                                      bool focused,
+                                                      uint32_t now_ms)
+{
+    if(s_wifi_air == NULL)
+    {
+        return;
+    }
+    (void)memset(&s_wifi_air->counters, 0, sizeof(s_wifi_air->counters));
+    s_wifi_air->counters.channel = channel;
+    s_wifi_air->window_start_ms = now_ms;
+    s_wifi_air->focused = focused;
+}
+
 void poom_scanner_core_reset_stats(void)
 {
     portENTER_CRITICAL(&s_lock);
@@ -377,6 +509,88 @@ bool poom_scanner_core_get_ieee802154_stats(poom_scanner_core_ieee802154_stats_t
     }
     portEXIT_CRITICAL(&s_lock);
 
+    return true;
+}
+
+esp_err_t poom_scanner_core_wifi_focus_channel(uint8_t channel)
+{
+    uint32_t now_ms;
+    esp_err_t status;
+
+    if((s_sc.mode != POOM_SCANNER_CORE_MODE_WIFI) ||
+       (poom_scanner_core_wifi_idx_(channel) < 0) || (s_wifi_air == NULL))
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+    if(s_sc.hop_timer != NULL)
+    {
+        (void)xTimerStop(s_sc.hop_timer, portMAX_DELAY);
+    }
+    status = esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+    if(status != ESP_OK)
+    {
+        if(s_sc.hop_timer != NULL)
+        {
+            (void)xTimerStart(s_sc.hop_timer, 0U);
+        }
+        return status;
+    }
+
+    now_ms = (uint32_t)(esp_timer_get_time() / 1000LL);
+    portENTER_CRITICAL(&s_lock);
+    s_sc.current_channel = channel;
+    poom_scanner_core_wifi_air_reset_locked_(channel, true, now_ms);
+    portEXIT_CRITICAL(&s_lock);
+    return ESP_OK;
+}
+
+esp_err_t poom_scanner_core_wifi_resume_hopping(void)
+{
+    uint32_t now_ms;
+
+    if((s_sc.mode != POOM_SCANNER_CORE_MODE_WIFI) || (s_wifi_air == NULL))
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+    now_ms = (uint32_t)(esp_timer_get_time() / 1000LL);
+    portENTER_CRITICAL(&s_lock);
+    poom_scanner_core_wifi_air_reset_locked_(0U, false, now_ms);
+    portEXIT_CRITICAL(&s_lock);
+
+    if((s_sc.hop_timer != NULL) &&
+       (xTimerStart(s_sc.hop_timer, 0U) != pdPASS))
+    {
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
+bool poom_scanner_core_get_wifi_air_stats(
+    poom_scanner_core_wifi_air_stats_t* out,
+    bool reset_window)
+{
+    uint32_t now_ms;
+
+    if(out == NULL)
+    {
+        return false;
+    }
+    now_ms = (uint32_t)(esp_timer_get_time() / 1000LL);
+
+    portENTER_CRITICAL(&s_lock);
+    if((s_sc.mode != POOM_SCANNER_CORE_MODE_WIFI) ||
+       (s_wifi_air == NULL) || !s_wifi_air->focused)
+    {
+        portEXIT_CRITICAL(&s_lock);
+        return false;
+    }
+    *out = s_wifi_air->counters;
+    out->window_ms = now_ms - s_wifi_air->window_start_ms;
+    if(reset_window)
+    {
+        poom_scanner_core_wifi_air_reset_locked_(out->channel, true, now_ms);
+    }
+    portEXIT_CRITICAL(&s_lock);
     return true;
 }
 
@@ -533,7 +747,12 @@ static esp_err_t poom_scanner_core_start_wifi_internal_(uint32_t hop_ms)
 {
     esp_err_t status;
     wifi_promiscuous_filter_t filter = {
-        .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA,
+        .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT |
+                       WIFI_PROMIS_FILTER_MASK_CTRL |
+                       WIFI_PROMIS_FILTER_MASK_DATA,
+    };
+    wifi_promiscuous_filter_t control_filter = {
+        .filter_mask = WIFI_PROMIS_CTRL_FILTER_MASK_ALL,
     };
 
 #if defined(CONFIG_IDF_TARGET_ESP32C5) || defined(CONFIG_IDF_TARGET_ESP32C6)
@@ -565,6 +784,12 @@ static esp_err_t poom_scanner_core_start_wifi_internal_(uint32_t hop_ms)
     (void)esp_wifi_set_channel(s_sc.current_channel, WIFI_SECOND_CHAN_NONE);
 
     status = esp_wifi_set_promiscuous_filter(&filter);
+    if(status != ESP_OK)
+    {
+        return status;
+    }
+
+    status = esp_wifi_set_promiscuous_ctrl_filter(&control_filter);
     if(status != ESP_OK)
     {
         return status;
@@ -640,6 +865,12 @@ esp_err_t poom_scanner_core_start_wifi(uint32_t hop_ms)
         return ESP_ERR_INVALID_STATE;
     }
 
+    ret = poom_scanner_core_wifi_air_alloc_();
+    if(ret != ESP_OK)
+    {
+        return ret;
+    }
+
     poom_scanner_core_reset_stats();
     s_sc.mode = POOM_SCANNER_CORE_MODE_WIFI;
     ret = poom_scanner_core_start_wifi_internal_(hop_ms);
@@ -676,6 +907,7 @@ esp_err_t poom_scanner_core_stop(void)
     const poom_scanner_core_mode_t prev_mode = s_sc.mode;
     if(prev_mode == POOM_SCANNER_CORE_MODE_NONE)
     {
+        poom_scanner_core_wifi_air_free_();
         return ESP_OK;
     }
 
@@ -703,6 +935,7 @@ esp_err_t poom_scanner_core_stop(void)
     }
 
     s_sc.current_channel = 0U;
+    poom_scanner_core_wifi_air_free_();
     return ESP_OK;
 }
 

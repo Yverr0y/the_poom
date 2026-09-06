@@ -34,6 +34,7 @@ set(POOM_APP_PACK_REQUIRES
     poom_ble_scan
     poom_ble_spam
     poom_ble_tracker
+    poom_ble_detector
     poom_boot_policy
     poom_buz_theme
     poom_drone
@@ -61,6 +62,7 @@ set(POOM_APP_PACK_REQUIRES
     poom_wifi_ctrl
     poom_wifi_deauth
     poom_wifi_deauth_detector
+    poom_wifi_detector
     poom_wifi_karma
     poom_wifi_scanner
     poom_wifi_spam

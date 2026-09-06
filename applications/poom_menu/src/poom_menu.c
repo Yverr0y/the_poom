@@ -23,6 +23,7 @@
 
 #include "menu_air_ble.h"
 #include "menu_ble_control.h"
+#include "menu_ble_detector.h"
 #include "menu_ble_scan.h"
 #include "menu_ble_spam.h"
 #include "menu_captive.h"
@@ -66,7 +67,7 @@
 #include "menu_sniffer_device.h"
 #include "menu_ssid_spam.h"
 #include "menu_tone.h"
-#include "menu_tracker.h"
+#include "menu_wifi_detector.h"
 #include "poom_breakout.h"
 
 #include "freertos/FreeRTOS.h"
@@ -387,11 +388,23 @@ static void action_ble_spam_(void)
  *
  * @return void
  */
-static void action_tracker_(void)
+static void action_ble_detector_(void)
 {
     detach_menu_();
     vTaskDelay(pdMS_TO_TICKS(180U));
-    app_tracker_menu();
+    menu_ble_detector_show();
+}
+
+/**
+ * @brief Opens the Wi-Fi device detector.
+ *
+ * @return void
+ */
+static void action_wifi_detector_(void)
+{
+    detach_menu_();
+    vTaskDelay(pdMS_TO_TICKS(180U));
+    menu_wifi_detector_show();
 }
 
 /**
@@ -874,7 +887,8 @@ static const poom_menu_item_t s_apps_beast[] = {
     {"SPAM WIFI", action_spam_wifi_},
     {"SPAM BLE", action_ble_spam_},
     {"CAPTIVE PORTAL", action_captive_},
-    {"TRACKER", action_tracker_},
+    {"BLE DETECT", action_ble_detector_},
+    {"WIFI DETECT", action_wifi_detector_},
     {"SNIFFER", action_pcap_snf_},
     {"SNNIFER RT", action_sniffer_rt_},
     {"SCAN CHANNELS", action_scanner_core_},

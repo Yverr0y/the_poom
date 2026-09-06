@@ -40,7 +40,7 @@ static poom_wifi_scanner_ap_records_t s_poom_wifi_scanner_records = {0};
  * @param[in/out] none Not used.
  * @return esp_err_t
  */
-esp_err_t poom_wifi_scanner_scan(void)
+esp_err_t poom_wifi_scanner_scan_configured(const wifi_scan_config_t *config)
 {
     esp_err_t status;
 
@@ -59,7 +59,7 @@ esp_err_t poom_wifi_scanner_scan(void)
         POOM_WIFI_SCANNER_PRINTF_W("esp_wifi_clear_ap_list failed: %s", esp_err_to_name(status));
     }
 
-    status = esp_wifi_scan_start(NULL, true);
+    status = esp_wifi_scan_start(config, true);
     if(status != ESP_OK)
     {
         POOM_WIFI_SCANNER_PRINTF_E("esp_wifi_scan_start failed: %s", esp_err_to_name(status));
@@ -77,6 +77,11 @@ esp_err_t poom_wifi_scanner_scan(void)
     POOM_WIFI_SCANNER_PRINTF_I("Found %u APs", s_poom_wifi_scanner_records.count);
     POOM_WIFI_SCANNER_PRINTF_D("Scan completed");
     return ESP_OK;
+}
+
+esp_err_t poom_wifi_scanner_scan(void)
+{
+    return poom_wifi_scanner_scan_configured(NULL);
 }
 
 /**

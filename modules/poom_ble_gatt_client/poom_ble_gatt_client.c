@@ -836,11 +836,6 @@ esp_err_t poom_ble_gatt_client_stop(void)
     esp_bt_controller_status_t ctrl_status;
     esp_bluedroid_status_t bluedroid_status;
 
-    if (!s_started)
-    {
-        return ESP_OK;
-    }
-
     s_is_connected = false;
     s_server_attached = false;
 
@@ -897,16 +892,6 @@ esp_err_t poom_ble_gatt_client_stop(void)
             {
                 result = ret;
             }
-        }
-    }
-
-    ret = esp_bt_controller_mem_release(ESP_BT_MODE_BLE);
-    if ((ret != ESP_OK) && (ret != ESP_ERR_INVALID_STATE))
-    {
-        POOM_BLE_GATT_CLIENT_PRINTF_W("controller mem release ble failed: 0x%x", ret);
-        if (result == ESP_OK)
-        {
-            result = ret;
         }
     }
 

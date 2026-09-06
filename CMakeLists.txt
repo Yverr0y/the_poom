@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 3.16)
 #
 set(POOM_FIRMWARE_VERSION "")
 set(POOM_FW_VERSION "1.0")
-set(POOM_FW_RELEASE "6")
+set(POOM_FW_RELEASE "7")
 
 if(DEFINED ENV{POOM_FIRMWARE_VERSION} AND NOT "$ENV{POOM_FIRMWARE_VERSION}" STREQUAL "")
     set(POOM_FIRMWARE_VERSION "$ENV{POOM_FIRMWARE_VERSION}")
@@ -130,6 +130,8 @@ set(MODULES
     poom_ble_plot
     poom_ble_spam
     poom_ble_tracker
+    poom_ble_detector
+    poom_wifi_detector
     poom_drone
     poom_edge_impulse
     poom_http_load_test
@@ -209,6 +211,8 @@ set(POOM_APPLICATION_DIRS
     ${CMAKE_SOURCE_DIR}/applications/poom_ble_plot
     ${CMAKE_SOURCE_DIR}/applications/poom_ble_spam
     ${CMAKE_SOURCE_DIR}/applications/poom_ble_tracker
+    ${CMAKE_SOURCE_DIR}/applications/poom_ble_detector
+    ${CMAKE_SOURCE_DIR}/applications/poom_wifi_detector
     ${CMAKE_SOURCE_DIR}/applications/poom_drone
     ${CMAKE_SOURCE_DIR}/applications/poom_drone_emul
     ${CMAKE_SOURCE_DIR}/applications/poom_edge_impulse
