@@ -14,7 +14,6 @@
 #include "Arduboy2.h"
 #include "button_driver.h"
 #include "input_events.h"
-#include "i2c.h"
 #include "poom_sbus.h"
 #include "sd_card.h"
 
@@ -215,9 +214,7 @@ static void menu_midi_harmony_render_(void)
         (void)poom_arduboy_print(err_line);
     }
 
-    i2c_lock();
     poom_arduboy_display();
-    i2c_unlock();
 }
 
 /**

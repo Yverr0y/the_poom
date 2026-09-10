@@ -16,7 +16,7 @@
 #define NVS_KEY_NAME_MAX_SIZE (16U)
 #endif
 
-#define POOM_SECRETS_NVS_PARTITION_NAME   "nvs"
+#define POOM_SECRETS_NVS_PARTITION_NAME   "poom_nvs"
 #define POOM_SECRETS_RECORD_KEY_DATA_FMT  "d%08" PRIx32
 #define POOM_SECRETS_RECORD_KEY_ID_FMT    "i%08" PRIx32
 #define POOM_SECRETS_RECORD_KEY_BUF_LEN   (NVS_KEY_NAME_MAX_SIZE)
@@ -134,7 +134,11 @@ static esp_err_t poom_secrets_open_(nvs_open_mode_t mode, nvs_handle_t* out_hand
         return ESP_ERR_INVALID_ARG;
     }
 
-    return nvs_open(POOM_SECRETS_NAMESPACE, mode, out_handle);
+    return nvs_open_from_partition(
+        POOM_SECRETS_NVS_PARTITION_NAME,
+        POOM_SECRETS_NAMESPACE,
+        mode,
+        out_handle);
 }
 
 /**
@@ -161,15 +165,15 @@ static esp_err_t poom_secrets_commit_and_close_(nvs_handle_t handle, esp_err_t o
 }
 
 esp_err_t poom_secrets_init(void) {
-    esp_err_t err = nvs_flash_init();
+    esp_err_t err = nvs_flash_init_partition(POOM_SECRETS_NVS_PARTITION_NAME);
 
     if((err == ESP_ERR_NVS_NO_FREE_PAGES) || (err == ESP_ERR_NVS_NEW_VERSION_FOUND)) {
-        err = nvs_flash_erase();
+        err = nvs_flash_erase_partition(POOM_SECRETS_NVS_PARTITION_NAME);
         if(err != ESP_OK) {
             return err;
         }
 
-        err = nvs_flash_init();
+        err = nvs_flash_init_partition(POOM_SECRETS_NVS_PARTITION_NAME);
     }
 
     return err;

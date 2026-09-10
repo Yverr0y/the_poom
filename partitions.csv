@@ -1,33 +1,36 @@
 # ============================================================================
-# ESP32-C6 Partition Table (CSV) — Ajustada y Documentada
+# ESP32-C5 Partition Table (CSV) - tuned and documented.
 # ============================================================================
-# • Offsets vacíos: ESP-IDF los calcula respetando alineaciones (data: 4 KB; app: 64 KB).
-# • Flash recomendada: ≥ 8 MB. Suma sin bootloader/ptable ≈ 7,8 MB (ver abajo).
-# • OTA dual: cada slot es 3712K (= 58 × 64 KB) para evitar padding.
+# - Empty offsets: ESP-IDF computes them while preserving alignment (data: 4 KB; app: 64 KB).
+# - Recommended flash: >= 8 MB. Total without bootloader/ptable is about 7.8 MB (see below).
+# - Dual OTA: each slot is 3712K (= 58 x 64 KB) to avoid padding.
 # ============================================================================
 
 # Name,     Type, SubType, Offset,  Size,   Flags
 
-# NVS: KV store (config, credenciales, bonding BLE, etc.)
-nvs,        data,     nvs,             ,       24K,
+# System NVS KV store (Wi-Fi/BLE/Arduino/games).
+nvs,        data,     nvs,             ,       32K,
 
-# Calibración PHY (Wi-Fi/BLE).
+# POOM NVS KV store (configuration, credentials, aliases, profiles).
+poom_nvs,   data,     nvs,             ,       24K,
+
+# PHY calibration (Wi-Fi/BLE).
 phy_init,   data,     phy,             ,        4K,
 
-# Almacenamiento Zigbee/Thread/Matter (FATFS/WL-FAT).
+# Zigbee/Thread/Matter storage (FATFS/WL-FAT).
 zb_storage, data,     fat,             ,       16K,
 
-# Datos de fábrica Zigbee (alineado a sector de 4 KB).
+# Zigbee factory data (aligned to a 4 KB sector).
 zb_fct,     data,     fat,             ,        4K,
 
-# Metadatos de OTA (slot activo, etc.)
+# OTA metadata (active slot, etc.).
 otadata,    data,     ota,             ,        8K,
 
-# Sistema de archivos interno (SPIFFS); cámbialo a littlefs si prefieres.
+# Internal filesystem (SPIFFS);
 internal,   data,  spiffs,             ,      512K,
 
-# App OTA #0 (tamaño múltiplo de 64 KB para evitar padding).
+# OTA app #0 (size is a multiple of 64 KB to avoid padding).
 ota_0,       app,   ota_0,             ,     3712K,
 
-# App OTA #1 (igual que ota_0).
+# OTA app #1 (same size as ota_0).
 ota_1,       app,   ota_1,             ,     3712K,

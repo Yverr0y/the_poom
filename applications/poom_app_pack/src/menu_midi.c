@@ -12,7 +12,6 @@
 #include "button_driver.h"
 #include "input_events.h"
 #include "ble_midi.h"
-#include "i2c.h"
 #include "poom_motion_midi.h"
 #include "poom_sbus.h"
 
@@ -164,9 +163,7 @@ static void menu_midi_render_(void)
     poom_arduboy_set_cursor(0, 56);
     (void)poom_arduboy_print(F("A:PANIC"));
 
-    i2c_lock();
     poom_arduboy_display();
-    i2c_unlock();
 }
 
 /**
